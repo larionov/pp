@@ -8,6 +8,8 @@
   "dependencies": {
     "@vueuse/core": "^4.0.0",
     "fabric": "^4.3.0",
+    "firebase": "^8.2.1",
+    "nanoid": "^3.1.20",
     "vue": "^3.0.4"
   },
   "devDependencies": {

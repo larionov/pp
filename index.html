@@ -5,6 +5,25 @@
     <link rel="icon" href="/favicon.ico" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Vite App</title>
+    <!-- The core Firebase JS SDK is always required and must be listed first -->
+    <script src="https://www.gstatic.com/firebasejs/8.2.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.2.1/firebase-database.js"></script>
+    <!-- TODO: Add SDKs for Firebase products that you want to use
+     https://firebase.google.com/docs/web/setup#available-libraries -->
+
+    <script>
+      // Your web app's Firebase configuration
+      var firebaseConfig = {
+        apiKey: 'AIzaSyDGx9CeWmvb7xPEHrMb3bSH7X3SjvJq5vA',
+        authDomain: 'pp-1-a93b8.firebaseapp.com',
+        projectId: 'pp-1-a93b8',
+        storageBucket: 'pp-1-a93b8.appspot.com',
+        messagingSenderId: '526689914857',
+        appId: '1:526689914857:web:5cf13dd546f39bfef6c578',
+      };
+      // Initialize Firebase
+      firebase.initializeApp(firebaseConfig);
+    </script>
   </head>
   <body class="overflow-hidden">
     <div id="app"></div>

@@ -129,7 +129,7 @@ fabric.Image.filters.Redify = fabric.util.createClass(
 
       float x = 0.21 * sample.r + 0.71 * sample.g + 0.07 * sample.b;
       gl_FragColor = vec4(
-        (step(vec3(0.33), vec3(x))  +step(vec3(0.66), vec3(x))) / vec3(2.0),
+        vec3(x),
         1.0);
     }`,
 
@@ -145,17 +145,82 @@ fabric.Image.filters.Redify = fabric.util.createClass(
     },
   },
 );
+//        (step(vec3(0.33), vec3(x))  +step(vec3(0.66), vec3(x))) / vec3(2.0),
+
 fabric.Image.filters.Redify.fromObject =
   fabric.Image.filters.BaseFilter.fromObject;
 
+/* function getImageData(img) {
+ *   // 1) Create a canvas, either on the page or simply in code
+ *   var canvas = document.createElement('canvas');
+ *   var ctx = canvas.getContext('2d');
+ *
+ *   // 2) Copy your image data into the canvas
+ *   var myImgElement = document.getElementById('foo');
+ *   ctx.drawImage(img, 0, 0);
+ *
+ *   // 3) Read your image data
+ *   var w = img.width,
+ *     h = img.height;
+ *    return ctx.getImageData(0, 0, w, h);
+ *  } */
+
+function floyd_steinberg(image) {
+  var imageData = image.data;
+  var imageDataLength = imageData.length;
+  var w = image.width;
+  var lumR = [],
+    lumG = [],
+    lumB = [];
+
+  var newPixel, err;
+
+  for (var i = 0; i < 256; i++) {
+    lumR[i] = i * 0.299;
+    lumG[i] = i * 0.587;
+    lumB[i] = i * 0.11;
+  }
+
+  // Greyscale luminance (sets r pixels to luminance of rgb)
+  for (var i = 0; i <= imageDataLength; i += 4) {
+    imageData[i] = Math.floor(
+      lumR[imageData[i]] + lumG[imageData[i + 1]] + lumB[imageData[i + 2]],
+    );
+  }
+
+  for (
+    var currentPixel = 0;
+    currentPixel <= imageDataLength;
+    currentPixel += 4
+  ) {
+    // threshold for determining current pixel's conversion to a black or white pixel
+    newPixel = imageData[currentPixel] < 150 ? 0 : 255;
+    err = Math.floor((imageData[currentPixel] - newPixel) / 23);
+    imageData[currentPixel + 0 * 1 - 0] = newPixel;
+    imageData[currentPixel + 4 * 1 - 0] += err * 7;
+    imageData[currentPixel + 4 * w - 4] += err * 3;
+    imageData[currentPixel + 4 * w - 0] += err * 5;
+    imageData[currentPixel + 4 * w + 4] += err * 1;
+    // Set g and b values equal to r (effectively greyscales the image fully)
+    imageData[currentPixel + 1] = imageData[currentPixel + 2] =
+      imageData[currentPixel];
+  }
+
+  return image;
+}
+
 import { ref } from 'vue';
 import { useWindowSize, debouncedWatch } from '@vueuse/core';
+import { customAlphabet } from 'nanoid';
+
 const W = 264;
 const H = 176;
+
 function rescale_canvas_if_needed({ canvas, width, height }) {
   var optimal_dimensions = [W, H];
-  var scaleFactorX = width / optimal_dimensions[0];
-  var scaleFactorY = height / optimal_dimensions[1];
+  const portrait = width < height;
+  var scaleFactorX = (width - (portrait ? 0 : 300)) / optimal_dimensions[0];
+  var scaleFactorY = (height - (portrait ? 300 : 0)) / optimal_dimensions[1];
 
   let w = 0;
   let h = 0;
@@ -196,6 +261,8 @@ export default {
     },
     fill(color) {
       var rect = new fabric.Rect({
+        left: 0,
+        top: 0,
         width: W,
         height: H,
         fill: color,
@@ -203,6 +270,26 @@ export default {
       });
 
       this.canvas.add(rect);
+      this.onUpdate();
+    },
+    onUpdate() {
+      const raster = this.canvas.toDataURL();
+
+      fabric.Image.fromURL(raster, (img) => {
+        //        img.filters.push(new fabric.Image.filters.Redify());
+        // apply filters and re-render canvas when done
+        //        img.applyFilters();
+        this.canvas.getObjects().forEach((o) => this.canvas.remove(o));
+        this.dbImage
+          .set({
+            image: img.toDataURL(),
+            clientId: this.clientId,
+          })
+          .then((res) => {
+            console.log({ res });
+          });
+        this.canvas.setBackgroundImage(img);
+      });
     },
     onUpload(e) {
       var reader = new FileReader();
@@ -210,8 +297,10 @@ export default {
         var imgObj = new Image();
         imgObj.src = event.target.result;
         imgObj.onload = () => {
+          /* const imgCtx = getImageData(imgObj);
+           * this.canvas.getContext().drawImage(imgCtx.canvas, 0, 0); */
           var image = new fabric.Image(imgObj);
-          console.log(image.width);
+
           image.set({
             angle: 0,
             padding: 0,
@@ -221,6 +310,7 @@ export default {
           this.canvas.centerObject(image);
           this.canvas.add(image);
           this.canvas.renderAll();
+          this.onUpdate();
           e.target.value = null;
         };
       };
@@ -228,6 +318,9 @@ export default {
     },
   },
   mounted() {
+    const database = firebase.database();
+    this.dbImage = firebase.database().ref('board/0');
+
     const ref = this.$refs.can;
     this.canvas = new fabric.Canvas(ref);
     let canvas = this.canvas;
@@ -254,40 +347,25 @@ export default {
     };
     debouncedWatch([width, height], onResize, { debounce: 500 });
     onResize();
-
-    canvas.on('path:created', function (p) {
-      setTimeout(() => {
-        const raster = canvas.toDataURL({
-          enableRetinaScaling: false,
-          multiplier: 1,
-          left: 0,
-          top: 0,
-          width: W,
-          height: H,
-          withoutTransform: true,
-          withoutShadow: true,
+    this.dbImage.on('value', (db) => {
+      const res = db.val();
+      if (this.clientId !== res.clientId) {
+        console.log(this.clientId, res.clientId, res);
+        fabric.Image.fromURL(res.image, (img) => {
+          this.canvas.setBackgroundImage(img);
+          this.canvas.renderAll();
         });
-
-        fabric.Image.fromURL(raster, (img) => {
-          img.filters.push(
-            /* new fabric.Image.filters.Blur({
-             *   blur: 0.5,
-             * }), */
-            new fabric.Image.filters.Redify({
-              blur: 0.5,
-            }),
-          );
-          // apply filters and re-render canvas when done
-          img.applyFilters();
-          canvas.setBackgroundImage(img);
-          canvas.getObjects().forEach((o) => canvas.remove(o));
-        });
-      }, 10);
+      }
     });
+
+    //    const onUpdate = () => ;
+    canvas.on('path:created', this.onUpdate);
   },
   data() {
     return {
+      clientId: customAlphabet('0123456789abcdefghijklmnopqrstuvwxyz', 6)(),
       canvasWidth: 0,
+      dbImage: null,
       width: 0,
       height: 0,
       canvas: null,
