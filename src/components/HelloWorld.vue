@@ -20,11 +20,10 @@
             }"
           >
             <svg
-              class="inline-block"
               :style="{ color: color }"
               xmlns="http://www.w3.org/2000/svg"
               viewBox="0 0 20 20"
-              class="w-6 h-6"
+              class="inline-block w-6 h-6"
               fill="currentColor"
             >
               <circle cx="10" cy="10" r="10" />
@@ -42,11 +41,10 @@
             }"
           >
             <svg
-              class="inline-block"
               :style="{ color: drawColor }"
               xmlns="http://www.w3.org/2000/svg"
               viewBox="0 0 20 20"
-              class="w-6 h-6"
+              class="inline-block w-6 h-6"
               fill="currentColor"
             >
               <circle cx="10" cy="10" :r="Math.ceil(size / 4)" />
