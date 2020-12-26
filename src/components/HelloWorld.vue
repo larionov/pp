@@ -43,32 +43,33 @@
             <svg
               :style="{ color: drawColor }"
               xmlns="http://www.w3.org/2000/svg"
-              viewBox="0 0 20 20"
-              class="inline-block w-6 h-6"
+              viewBox="0 0 40 40"
+              class="inline-block w-10 h-10"
               fill="currentColor"
             >
-              <circle cx="10" cy="10" :r="Math.ceil(size / 4)" />
+              <circle cx="20" cy="20" :r="Math.ceil(size / 2)" />
             </svg>
           </button>
         </div>
 
-        <div class="pallete-panel mt-3">
-          <button
-            v-for="color in colors"
-            v-on:click="fill(color)"
-            class="text-center border border-blue-400 w-12 h-12 rounded"
-          >
-            <svg
-              :style="{ color: color }"
-              xmlns="http://www.w3.org/2000/svg"
-              viewBox="0 0 20 20"
-              class="inline-block w-6 h-6"
-              fill="currentColor"
-            >
-              <rect width="20" height="20" />
-            </svg>
-          </button>
-        </div>
+        <!-- <div class="pallete-panel mt-3">
+             <button
+             disabled="disabled"
+             v-for="color in colors"
+             v-on:click="fill(color)"
+             class="text-center border border-blue-400 w-12 h-12 rounded"
+             >
+             <svg
+             :style="{ color: color }"
+             xmlns="http://www.w3.org/2000/svg"
+             viewBox="0 0 20 20"
+             class="inline-block w-6 h-6"
+             fill="currentColor"
+             >
+             <rect width="20" height="20" />
+             </svg>
+             </button>
+             </div> -->
         <div class="pallete-panel mt-3">
           <label
             class="text-center flex flex-col items-center border border-blue-400 w-12 h-12 rounded"
@@ -95,6 +96,7 @@
             <input type="file" v-on:change="onUpload" class="hidden" />
           </label>
         </div>
+        <img ref="wc" style="width: 100%" />
       </div>
     </div>
     <!-- <footer class="px-6 py-2 bg-gray-800 text-gray-100">
@@ -219,7 +221,7 @@ const H = 176;
 function rescale_canvas_if_needed({ canvas, width, height }) {
   var optimal_dimensions = [W, H];
   const portrait = width < height;
-  var scaleFactorX = (width - (portrait ? 0 : 300)) / optimal_dimensions[0];
+  var scaleFactorX = (width - (portrait ? 0 : 200)) / optimal_dimensions[0];
   var scaleFactorY = (height - (portrait ? 300 : 0)) / optimal_dimensions[1];
 
   let w = 0;
@@ -280,14 +282,10 @@ export default {
         // apply filters and re-render canvas when done
         //        img.applyFilters();
         this.canvas.getObjects().forEach((o) => this.canvas.remove(o));
-        this.dbImage
-          .set({
-            image: img.toDataURL(),
-            clientId: this.clientId,
-          })
-          .then((res) => {
-            console.log({ res });
-          });
+        this.dbImage.set({
+          image: img.toDataURL(),
+          clientId: this.clientId,
+        });
         this.canvas.setBackgroundImage(img);
       });
     },
@@ -319,7 +317,9 @@ export default {
   },
   mounted() {
     const database = firebase.database();
+    const storage = firebase.storage();
     this.dbImage = firebase.database().ref('board/0');
+    //this.wcImage = firebase.database().ref('wc/0');
 
     const ref = this.$refs.can;
     this.canvas = new fabric.Canvas(ref);
@@ -347,10 +347,22 @@ export default {
     };
     debouncedWatch([width, height], onResize, { debounce: 500 });
     onResize();
-    this.dbImage.on('value', (db) => {
-      const res = db.val();
+
+    setInterval(() => {
+      storage
+        .ref('images/wc.jpg')
+        .getDownloadURL()
+        .then((url) => {
+          this.$refs.wc.src = url + '?' + new Date().getTime();
+        })
+        .catch(function (error) {
+          // Handle any errors
+        });
+    }, 5000);
+
+    this.dbImage.on('value', (db2) => {
+      const res = db2.val();
       if (this.clientId !== res.clientId) {
-        console.log(this.clientId, res.clientId, res);
         fabric.Image.fromURL(res.image, (img) => {
           this.canvas.setBackgroundImage(img);
           this.canvas.renderAll();
@@ -363,6 +375,7 @@ export default {
   },
   data() {
     return {
+      showWebcam: false,
       clientId: customAlphabet('0123456789abcdefghijklmnopqrstuvwxyz', 6)(),
       canvasWidth: 0,
       dbImage: null,
