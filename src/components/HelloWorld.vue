@@ -117,22 +117,17 @@ fabric.Image.filters.Redify = fabric.util.createClass(
   {
     type: 'Redify',
 
-    /**
-     * Fragment source for the redify program
-     */
     fragmentSource: `
-
     precision highp float;
     uniform sampler2D uTexture;
     varying vec2 vTexCoord;
     void main() {
-
       vec4 sample = texture2D(uTexture, vTexCoord);
 
       float x = 0.21 * sample.r + 0.71 * sample.g + 0.07 * sample.b;
       gl_FragColor = vec4(
-        vec3(x),
-        1.0);
+        vec3((step(0.25, x) + step(0.5, x) + step(0.75, x)) / 3.0),
+      1.0);
     }`,
 
     applyTo2d: function (options) {
@@ -147,10 +142,6 @@ fabric.Image.filters.Redify = fabric.util.createClass(
     },
   },
 );
-//        (step(vec3(0.33), vec3(x))  +step(vec3(0.66), vec3(x))) / vec3(2.0),
-
-fabric.Image.filters.Redify.fromObject =
-  fabric.Image.filters.BaseFilter.fromObject;
 
 /* function getImageData(img) {
  *   // 1) Create a canvas, either on the page or simply in code
@@ -166,50 +157,70 @@ fabric.Image.filters.Redify.fromObject =
  *     h = img.height;
  *    return ctx.getImageData(0, 0, w, h);
  *  } */
+import DitherJS from 'ditherjs';
 
-function floyd_steinberg(image) {
-  var imageData = image.data;
-  var imageDataLength = imageData.length;
-  var w = image.width;
-  var lumR = [],
-    lumG = [],
-    lumB = [];
-
-  var newPixel, err;
-
-  for (var i = 0; i < 256; i++) {
-    lumR[i] = i * 0.299;
-    lumG[i] = i * 0.587;
-    lumB[i] = i * 0.11;
-  }
-
-  // Greyscale luminance (sets r pixels to luminance of rgb)
-  for (var i = 0; i <= imageDataLength; i += 4) {
-    imageData[i] = Math.floor(
-      lumR[imageData[i]] + lumG[imageData[i + 1]] + lumB[imageData[i + 2]],
-    );
-  }
-
-  for (
-    var currentPixel = 0;
-    currentPixel <= imageDataLength;
-    currentPixel += 4
-  ) {
-    // threshold for determining current pixel's conversion to a black or white pixel
-    newPixel = imageData[currentPixel] < 150 ? 0 : 255;
-    err = Math.floor((imageData[currentPixel] - newPixel) / 23);
-    imageData[currentPixel + 0 * 1 - 0] = newPixel;
-    imageData[currentPixel + 4 * 1 - 0] += err * 7;
-    imageData[currentPixel + 4 * w - 4] += err * 3;
-    imageData[currentPixel + 4 * w - 0] += err * 5;
-    imageData[currentPixel + 4 * w + 4] += err * 1;
-    // Set g and b values equal to r (effectively greyscales the image fully)
-    imageData[currentPixel + 1] = imageData[currentPixel + 2] =
-      imageData[currentPixel];
-  }
-
-  return image;
-}
+/* function floyd_steinberg(image, cb) {
+ *   var imageData = image.data;
+ *   var imageDataLength = imageData.length;
+ *   var w = image.width;
+ *   var lumR = [],
+ *     lumG = [],
+ *     lumB = [];
+ *
+ *   var newPixel, err;
+ *
+ *   for (var i = 0; i < 256; i++) {
+ *     lumR[i] = i * 0.299;
+ *     lumG[i] = i * 0.587;
+ *     lumB[i] = i * 0.11;
+ *   }
+ *
+ *   // Greyscale luminance (sets r pixels to luminance of rgb)
+ *   for (var i = 0; i <= imageDataLength; i += 4) {
+ *     imageData[i] = Math.floor(
+ *       lumR[imageData[i]] + lumG[imageData[i + 1]] + lumB[imageData[i + 2]],
+ *     );
+ *   }
+ *
+ *   for (
+ *     var currentPixel = 0;
+ *     currentPixel <= imageDataLength;
+ *     currentPixel += 4
+ *   ) {
+ *     // threshold for determining current pixel's conversion to a black or white pixel
+ *     newPixel = imageData[currentPixel] < 150 ? 0 : 255;
+ *     err = Math.floor((imageData[currentPixel] - newPixel) / 23);
+ *     imageData[currentPixel + 0 * 1 - 0] = newPixel;
+ *     imageData[currentPixel + 4 * 1 - 0] += err * 7;
+ *     imageData[currentPixel + 4 * w - 4] += err * 3;
+ *     imageData[currentPixel + 4 * w - 0] += err * 5;
+ *     imageData[currentPixel + 4 * w + 4] += err * 1;
+ *     // Set g and b values equal to r (effectively greyscales the image fully)
+ *     imageData[currentPixel + 1] = imageData[currentPixel + 2] =
+ *       imageData[currentPixel];
+ *   }
+ *
+ *   // create a temporary canvas
+ *   var tempCanvas = document.createElement('canvas');
+ *   var tempCtx = tempCanvas.getContext('2d');
+ *
+ *   // set the temp canvas size == the canvas size
+ *   tempCanvas.width = image.width;
+ *   tempCanvas.height = image.height;
+ *
+ *   // put the modified pixels on the temp canvas
+ *   tempCtx.putImageData(imageData, 0, 0);
+ *
+ *   // use the tempCanvas.toDataURL to create an img object
+ *   var newImg = new Image();
+ *   newImg.onload = function () {
+ *     // drawImage the img on the canvas
+ *     cb(newImg);
+ *   };
+ *   newImg.src = tempCanvas.toDataURL();
+ *
+ *   return image;
+ * } */
 
 import { ref } from 'vue';
 import { useWindowSize, debouncedWatch } from '@vueuse/core';
@@ -247,6 +258,16 @@ function rescale_canvas_if_needed({ canvas, width, height }) {
   return { w, h };
 }
 
+const ditherjs = new DitherJS({
+  step: 1, // The step for the pixel quantization n = 1,2,3...
+  palette: [
+    [0, 0, 0],
+    [84, 84, 84],
+    [169, 169, 169],
+    [255, 255, 255],
+  ], // an array of colors as rgb arrays
+  algorithm: 'ordered', // one of ["ordered", "diffusion", "atkinson"]
+});
 export default {
   name: 'HelloWorld',
   props: {
@@ -278,9 +299,8 @@ export default {
       const raster = this.canvas.toDataURL();
 
       fabric.Image.fromURL(raster, (img) => {
-        //        img.filters.push(new fabric.Image.filters.Redify());
-        // apply filters and re-render canvas when done
-        //        img.applyFilters();
+        /* img.filters.push(new fabric.Image.filters.Redify());
+         * img.applyFilters(); */
         this.canvas.getObjects().forEach((o) => this.canvas.remove(o));
         this.dbImage.set({
           image: img.toDataURL(),
@@ -289,6 +309,26 @@ export default {
         this.canvas.setBackgroundImage(img);
       });
     },
+    /*
+     *           var ctx;
+     *           var c = document.createElement('canvas');
+     *
+     *           c.height = imgObj.width;
+     *           c.width = imgObj.height;
+     *
+     *           ctx = c.getContext('2d');
+     *           ctx.imageSmoothingEnabled = false;
+     *           ctx.drawImage(imgObj, 0, 0, c.width, c.height);
+     *
+     *           var imageData = ctx.getImageData(0, 0, c.width, c.height);
+     *
+     *
+     *           ctx.putImageData(imageData, 0, 0);
+     *           var newImg = new Image();
+     *     newImg.onload = () => {
+       };
+       newImg.src = c.toDataURL();
+     *  */
     onUpload(e) {
       var reader = new FileReader();
       reader.onload = (event) => {
@@ -305,11 +345,29 @@ export default {
             cornersize: 0,
           });
           image.scale(this.canvas.width / image.width);
-          this.canvas.centerObject(image);
-          this.canvas.add(image);
-          this.canvas.renderAll();
-          this.onUpdate();
-          e.target.value = null;
+
+          var c = document.createElement('canvas');
+          var ctx = c.getContext('2d');
+          var newImg = new Image();
+
+          ctx.imageSmoothingEnabled = false;
+          ctx.drawImage(imgObj, 0, 0, c.width, c.height);
+
+          var imageData = ctx.getImageData(0, 0, c.width, c.height);
+          ditherjs.ditherImageData.bind(ditherjs)(imageData, ditherjs.options);
+          ctx.putImageData(imageData, 0, 0);
+          var newImg = new Image();
+
+          newImg.src = c.toDataURL();
+          newImg.onload = () => {
+            var image2 = new fabric.Image(newImg);
+
+            this.canvas.centerObject(image2);
+            this.canvas.add(image2);
+            this.canvas.renderAll();
+            this.onUpdate();
+            e.target.value = null;
+          };
         };
       };
       reader.readAsDataURL(e.target.files[0]);
@@ -384,7 +442,7 @@ export default {
       canvas: null,
       drawColor: '#000000',
       drawSize: 2,
-      colors: ['#000000', '#7F7F7F', '#FFFFFF'],
+      colors: ['#000000', '#545454', '#A9A9A9', '#FFFFFF'],
       brushSizes: [2, 4, 6, 8, 16, 20, 30, 40],
     };
   },
