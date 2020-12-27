@@ -142,7 +142,7 @@ fabric.Image.filters.Redify = fabric.util.createClass(
     },
   },
 );
-
+import loadImage from 'blueimp-load-image';
 /* function getImageData(img) {
  *   // 1) Create a canvas, either on the page or simply in code
  *   var canvas = document.createElement('canvas');
@@ -330,53 +330,77 @@ export default {
        newImg.src = c.toDataURL();
      *  */
     onUpload(e) {
-      var reader = new FileReader();
-      reader.onload = (event) => {
-        var imgObj = new Image();
-        imgObj.src = event.target.result;
-        imgObj.onload = () => {
-          /* const imgCtx = getImageData(imgObj);
-           * this.canvas.getContext().drawImage(imgCtx.canvas, 0, 0); */
-          var image = new fabric.Image(imgObj);
-
-          image.set({
-            angle: 0,
-            padding: 0,
-            cornersize: 0,
-          });
-          image.scale(this.canvas.width / image.width);
-
-          var c = document.createElement('canvas');
-          var ctx = c.getContext('2d');
-          var newImg = new Image();
-
-          ctx.imageSmoothingEnabled = false;
-          ctx.drawImage(imgObj, 0, 0, c.width, c.height);
-
-          var imageData = ctx.getImageData(0, 0, c.width, c.height);
-          ditherjs.ditherImageData.bind(ditherjs)(imageData, ditherjs.options);
-          ctx.putImageData(imageData, 0, 0);
-          var newImg = new Image();
-
-          newImg.src = c.toDataURL();
-          newImg.onload = () => {
-            var image2 = new fabric.Image(newImg);
-
-            this.canvas.centerObject(image2);
-            this.canvas.add(image2);
-            this.canvas.renderAll();
-            this.onUpdate();
-            e.target.value = null;
-          };
-        };
+      const options = {
+        canvas: true,
+        pixelRatio: window.devicePixelRatio,
+        orientation: true,
+        imageSmoothingEnabled: false,
+        meta: true,
       };
-      reader.readAsDataURL(e.target.files[0]);
+      loadImage(e.target.files[0], (imgObj, data) => {
+        /* if (data.imageHead) {
+         *   if (data.exif) {
+         *   }
+         * } */
+        // Reset Exif Orientation data:
+        /* loadImage.writeExifData(data.imageHead, data, 'Orientation', 1);
+               }
+               imgObj.toBlob(function (blob) {
+             * if (!blob) return;
+             * loadImage.replaceHead(blob, data.imageHead, function (newBlob) {
+             *   content
+             *     .attr('href', loadImage.createObjectURL(newBlob))
+             *     .attr('download', 'image.jpg');
+             * });
+               }, 'image/jpeg');
+               } */
+        //        imgObj.onload = () => {
+        /* const imgCtx = getImageData(imgObj);
+         * this.canvas.getContext().drawImage(imgCtx.canvas, 0, 0); */
+        var image = new fabric.Image(imgObj);
+        console.log(data, image.width, image.height);
+
+        image.set({
+          angle: 0,
+          padding: 0,
+          cornersize: 0,
+        });
+        image.scale(this.canvas.width / image.width);
+        const w = this.canvas.width;
+        const h = (image.height * this.canvas.width) / image.width;
+
+        var c = document.createElement('canvas');
+        c.width = w;
+        c.height = h;
+        var ctx = c.getContext('2d');
+
+        ctx.imageSmoothingEnabled = false;
+        image.render(ctx);
+        console.log(c.width, c.height);
+        var imageData = ctx.getImageData(0, 0, c.width, c.height);
+        ditherjs.ditherImageData.bind(ditherjs)(imageData, ditherjs.options);
+        ctx.putImageData(imageData, 0, 0);
+        var newImg = new Image();
+
+        newImg.src = c.toDataURL();
+        newImg.onload = () => {
+          var image2 = new fabric.Image(newImg);
+
+          this.canvas.centerObject(image2);
+          this.canvas.add(image2);
+          this.canvas.renderAll();
+          this.onUpdate();
+          e.target.value = null;
+        };
+        //      };
+      });
     },
   },
+
   mounted() {
     const database = firebase.database();
     const storage = firebase.storage();
-    this.dbImage = firebase.database().ref('board/0');
+    this.dbImage = firebase.database().ref('board/1');
     //this.wcImage = firebase.database().ref('wc/0');
 
     const ref = this.$refs.can;
