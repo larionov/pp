@@ -400,7 +400,7 @@ export default {
   mounted() {
     const database = firebase.database();
     const storage = firebase.storage();
-    this.dbImage = firebase.database().ref('board/1');
+    this.dbImage = firebase.database().ref('board/0');
     //this.wcImage = firebase.database().ref('wc/0');
 
     const ref = this.$refs.can;
