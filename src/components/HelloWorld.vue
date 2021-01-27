@@ -399,7 +399,7 @@ export default {
 
   mounted() {
     const database = firebase.database();
-    const storage = firebase.storage();
+    //    const storage = firebase.storage();
     this.dbImage = firebase.database().ref('board/0');
     //this.wcImage = firebase.database().ref('wc/0');
 
@@ -430,17 +430,17 @@ export default {
     debouncedWatch([width, height], onResize, { debounce: 500 });
     onResize();
 
-    setInterval(() => {
-      storage
-        .ref('images/wc.jpg')
-        .getDownloadURL()
-        .then((url) => {
-          this.$refs.wc.src = url + '?' + new Date().getTime();
-        })
-        .catch(function (error) {
-          // Handle any errors
-        });
-    }, 5000);
+    /* setInterval(() => {
+     *   storage
+     *     .ref('images/wc.jpg')
+     *     .getDownloadURL()
+     *     .then((url) => {
+     *       this.$refs.wc.src = url + '?' + new Date().getTime();
+     *     })
+     *     .catch(function (error) {
+     *       // Handle any errors
+     *     });
+     * }, 5000); */
 
     this.dbImage.on('value', (db2) => {
       const res = db2.val();
